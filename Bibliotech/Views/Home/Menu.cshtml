@@ -1,0 +1,76 @@
+@{
+    ViewData["Title"] = "Menu de Admin";
+    var usersPageUrl = Url.Action("UsersPage", "Home");
+    var login = Context.Request.Cookies["login"];
+}
+
+<h2>Cadastrar Novo Usuário</h2>
+<form id="usuarioForm">
+    <div>
+        <label for="Nome">Nome:</label>
+        <input type="text" id="Nome" name="Nome" required />
+    </div>
+    <div>
+        <label for="Login">Login:</label>
+        <input type="text" id="Login" name="Login" required />
+    </div>
+    <div>
+        <label for="Senha">Senha:</label>
+        <input type="password" id="Senha" name="Senha" required />
+    </div>
+    <div>
+        <label for="Perfil">Perfil:</label>
+        <select id="Perfil" name="Perfil" required>
+            <option value="">Selecione um perfil</option>
+            <option value="Admin">Admin</option>
+            <option value="Bibliotecário">Bibliotecário</option>
+            <option value="Aluno">Aluno</option>
+            <option value="Professor">Professor</option>
+        </select>
+    </div>
+    <button type="submit">Cadastrar</button>
+</form>
+
+<button onclick='window.location.href="@usersPageUrl"' style="position: fixed; bottom: 70px; right: 10px;">Ver Lista de Usuários</button>
+
+<script>
+    document.getElementById('usuarioForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const formData = new FormData(event.target);
+        const data = Object.fromEntries(formData.entries());
+
+        const checkResponse = await fetch('/api/Usuarios/VerificarLoginExistente', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (checkResponse.ok) {
+            const loginExists = await checkResponse.json();
+            if (loginExists) {
+                alert('Login já está em uso.');
+                return;
+            }
+        }
+
+        const response = await fetch('/api/Usuarios', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            alert('Usuário cadastrado com sucesso!');
+        } else {
+            alert('Erro ao cadastrar usuário.');
+        }
+    });
+</script>
+
+
+

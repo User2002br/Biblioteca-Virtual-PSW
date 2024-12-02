@@ -1,0 +1,101 @@
+@using System.Security.Claims
+@model IEnumerable<Bibliotech.Models.Livro>
+
+@{
+    ViewData["Title"] = "Procurar Livros";
+    var borrowedBooks = ViewBag.BorrowedBooks as List<int> ?? new List<int>();
+    var usuarioBloqueado = User.Identity.IsAuthenticated && User.FindFirst("Bloqueado")?.Value == "True";
+    if (usuarioBloqueado)
+    {
+        Context.Response.Redirect("/Home/Bloqueado");
+    }
+}
+
+<h2>Livros</h2>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Título</th>
+            <th>Autor</th>
+            <th>Editora</th>
+            <th>Assunto</th>
+            <th>Disponibilidade</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var livro in Model)
+        {
+            <tr>
+                <td>@livro.Titulo</td>
+                <td>@livro.Autor</td>
+                <td>@livro.Editora</td>
+                <td>@livro.Assunto</td>
+                <td class="disponibilidade">
+                    @(livro.Disponivel ? "Disponível" : "Indisponível")
+                </td>
+                <td>
+                    @if (User.Identity.IsAuthenticated)
+                    {
+                        bool canRequest = livro.Disponivel && !borrowedBooks.Contains(livro.Id);
+                        <button class="btn @(canRequest ? "btn-primary" : "btn-secondary")"
+                                onclick="pedirLivro(@livro.Id, this)"
+                                @(canRequest ? "" : "disabled")>Pedir</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-primary" disabled>Login Required</button>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+@section Scripts {
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+        // Initialize borrowedBooks array from server-side data
+        var borrowedBooks = @Html.Raw(Newtonsoft.Json.JsonConvert.SerializeObject(borrowedBooks));
+
+        function pedirLivro(livroId, button) {
+            if (borrowedBooks.includes(livroId)) {
+                alert('Você já solicitou este livro.');
+                return;
+            }
+
+            console.log('Função pedirLivro chamada para LivroId:', livroId); // Log inicial
+
+            $.ajax({
+                url: '@Url.Action("CadastrarPedido", "Pedidos")',
+                type: 'POST',
+                data: JSON.stringify({ LivroId: livroId }),
+                contentType: 'application/json; charset=utf-8',
+                success: function (result) {
+                    console.log('Requisição AJAX bem-sucedida:', result); 
+                    alert('Pedido realizado com sucesso!');
+                    button.classList.remove("btn-primary");
+                    button.classList.add("btn-secondary");
+                    button.disabled = true;
+                    borrowedBooks.push(livroId);
+                },
+                error: function (xhr, status, error) {
+                    console.error('Erro na requisição AJAX:', xhr.responseText);
+                    alert('Erro ao realizar pedido: ' + xhr.responseText);
+                }
+            });
+        }
+
+        $(document).ready(function() {
+            borrowedBooks.forEach(function(id) {
+                $('button').each(function() {
+                    var onclickAttr = $(this).attr('onclick');
+                    if (onclickAttr && onclickAttr.includes(id)) {
+                        $(this).removeClass("btn-primary").addClass("btn-secondary").prop("disabled", true);
+                    }
+                });
+            });
+        });
+    </script>
+}

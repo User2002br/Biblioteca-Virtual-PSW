@@ -1,0 +1,343 @@
+@model IEnumerable<Bibliotech.Models.Livro>
+
+@{
+    var login = Context.Request.Cookies["login"];
+}
+
+@{
+    ViewData["Title"] = "Lista de Livros";
+}
+
+<style>
+    .pedido-frame {
+        overflow-y: scroll;
+        height: 300px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 10px;
+    }
+    .pedido-item {
+        background-color: #ffffff;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 10px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .pedido-item p {
+        margin: 0 0 10px;
+    }
+    .pedido-item button {
+        margin-right: 5px;
+    }
+</style>
+
+<div class="container mt-4">
+    <h2 class="mb-4">Lista de Livros</h2>
+    
+    @if(TempData["ErrorMessage"] != null)
+    {
+        <div class="alert alert-danger">@TempData["ErrorMessage"]</div>
+    }
+    
+    <form asp-action="EmprestarLivro" method="post" class="mb-4">
+        <div class="form-group">
+            <label for="userLogin">Login do Usuário</label>
+            <input type="text" class="form-control" id="userLogin" name="UserLogin" required>
+        </div>
+        <div class="form-group">
+            <label for="livroId">ID do Livro</label>
+            <input type="number" class="form-control" id="livroId" name="LivroId" required>
+        </div>
+        <button type="submit" class="btn btn-primary mt-2">Emprestar Livro</button>
+    </form>
+
+    <h2>Publicar Livro</h2>
+    <form id="livroForm">
+        <div>
+            <label for="Titulo">Título:</label>
+            <input type="text" id="Titulo" name="Titulo" required />
+        </div>
+        <div>
+            <label for="ISBN">ISBN:</label>
+            <input type="text" id="ISBN" name="ISBN" required />
+        </div>
+        <div>
+            <label for="Autor">Autor:</label>
+            <input type="text" id="Autor" name="Autor" required />
+        </div>
+        <div>
+            <label for="Editora">Editora:</label>
+            <input type="text" id="Editora" name="Editora" required />
+        </div>
+        <div>
+            <label for="Assunto">Assunto:</label>
+            <input type="text" id="Assunto" name="Assunto" required />
+        </div>
+        <div>
+            <label for="Edicao">Edição:</label>
+            <input type="number" id="Edicao" name="Edicao" required />
+        </div>
+        <button type="submit">Publicar</button>
+    </form>
+
+    <div class="pedido-frame">
+        @foreach(var pedido in ViewBag.Pedidos)
+        {
+            <div class="pedido-item">
+                <p>@pedido.Usuario.Nome (@pedido.Usuario.Login) está pedindo o livro @pedido.Livro.Titulo Deseja aceitar o pedido?</p>
+                <button class="btn btn-success" onclick="aprovarPedido(@pedido.Id)">Sim</button>
+                <button class="btn btn-danger" onclick="recusarPedido(@pedido.Id)">Não</button>
+            </div>
+        }
+    </div>
+
+    <table class="table table-striped">
+        <thead class="thead-dark">
+            <tr>
+                <th>Título</th>
+                <th>ISBN</th>
+                <th>Autor</th>
+                <th>Editora</th>
+                <th>Assunto</th>
+                <th>Edição</th>
+                <th>Data de Inclusão</th>
+                <th>Disponível</th>
+                <th>Código do Empréstimo</th> <!-- Nova coluna -->
+                <th>Ações</th> <!-- Nova coluna -->
+            </tr>
+        </thead>
+        <tbody>
+            @foreach(var livro in Model)
+            {
+                var emprestimosList = ViewBag.Emprestimos as IEnumerable<Bibliotech.Models.Emprestimo>; // Adicionado
+                var emprestimo = emprestimosList?.FirstOrDefault(e => e.LivroId == livro.Id); // Atualizado
+
+                <tr>
+                    <td>@livro.Titulo</td>
+                    <td>@livro.ISBN</td>
+                    <td>@livro.Autor</td>
+                    <td>@livro.Editora</td>
+                    <td>@livro.Assunto</td>
+                    <td>@livro.Edicao</td>
+                    <td>@livro.DataInclusao.ToString("dd/MM/yyyy")</td>
+                    <td>@(livro.Disponivel ? "Sim" : "Não")</td>
+                    <td>
+                        @if(!livro.Disponivel && emprestimo != null)
+                        {
+                            <span id="codigo-@livro.Id">********</span>
+                            <button class="btn btn-secondary btn-sm ms-2" onclick="abrirLoginFrame(@livro.Id)">Revelar</button>
+                        }
+                        else
+                        {
+                            <span>N/A</span>
+                        }
+                    </td>
+                    <td>
+                        @if(!livro.Disponivel)
+                        {
+                            <button class="btn btn-warning btn-sm" onclick="devolverLivro(@livro.Id)">Devolver</button>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal de Login do Bibliotecário -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="loginForm">
+          <div class="modal-header">
+              <h5 class="modal-title" id="loginModalLabel">Login de Bibliotecário</h5>
+              <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+              <div class="mb-3">
+                  <label for="libLogin" class="form-label">Usuário</label>
+                  <input type="text" class="form-control" id="libLogin" name="libLogin" required>
+              </div>
+              <div class="mb-3">
+                  <label for="libSenha" class="form-label">Senha</label>
+                  <input type="password" class="form-control" id="libSenha" name="libSenha" required>
+              </div>
+              <input type="hidden" id="emprestimoId" name="emprestimoId">
+          </div>
+          <div class="modal-footer">
+              <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+              <button type="submit" class="btn btn-primary">Entrar</button>
+          </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+    function resetLoginForm() {
+        document.getElementById('loginForm').reset();
+    }
+
+    document.getElementById('loginModal').addEventListener('hidden.bs.modal', resetLoginForm);
+
+    document.getElementById('livroForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+
+        const formData = new FormData(event.target);
+        const data = Object.fromEntries(formData.entries());
+
+        const response = await fetch('/api/Livros', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+
+        if (response.ok) {
+            alert('Livro publicado com sucesso!');
+            location.reload();
+        } else {
+            const error = await response.text();
+            alert('Erro ao publicar livro: ' + error);
+        }
+    });
+
+    async function aprovarPedido(pedidoId) {
+        if(confirm('Tem certeza que deseja aprovar este pedido?')) {
+            const response = await fetch('/Pedidos/AprovarPedido', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ pedidoId: pedidoId })
+            });
+
+            if (response.ok) {
+                const result = await response.json();
+                alert('Pedido aprovado com sucesso!\nCódigo do Empréstimo: ' + result.codigoEmprestimo);
+                location.reload();
+            } else {
+                const error = await response.text();
+                alert('Erro ao aprovar pedido: ' + error);
+            }
+        }
+    }
+
+    async function recusarPedido(pedidoId) {
+        if(confirm('Tem certeza que deseja recusar este pedido?')) {
+            const response = await fetch('/Pedidos/RecusarPedido', { // Verifique se o endpoint está correto
+                method: 'POST', // Certifique-se de que o método HTTP está correto
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ pedidoId: pedidoId })
+            });
+
+            if (response.ok) {
+                alert('Pedido recusado com sucesso!');
+                location.reload();
+            } else {
+                const error = await response.text();
+                alert('Erro ao recusar pedido: ' + error);
+            }
+        }
+    }
+
+    function abrirLoginFrame(livroId) {
+        document.getElementById('emprestimoId').value = livroId;
+        var loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+        loginModal.show();
+    }
+
+    document.getElementById('loginForm').addEventListener('submit', async function (event) {
+        event.preventDefault();
+        console.log('Form submission prevented');
+
+        const livroId = document.getElementById('emprestimoId').value;
+        const libLogin = document.getElementById('libLogin').value;
+        const libSenha = document.getElementById('libSenha').value;
+
+        console.log('Sending request to /api/Usuarios/VerificarLoginBibliotecario');
+        const response = await fetch('/api/Usuarios/VerificarLoginBibliotecario', { // Alterado para o endpoint correto
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ login: libLogin, senha: libSenha }) // Alterados os nomes dos campos
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            console.log('Response received:', result);
+            if (result.success) { // Alterada a condição de verificação
+                console.log('Login successful, revealing code');
+                await revelarCodigo(livroId); // Adicionado await
+                var loginModal = bootstrap.Modal.getInstance(document.getElementById('loginModal'));
+                loginModal.hide();
+            } else {
+                alert(result.message); // Opcional: exibir a mensagem retornada pelo servidor
+            }
+        } else {
+            console.error('Erro na autenticação:', response.statusText);
+            alert('Erro na autenticação.');
+        }
+    });
+
+    async function revelarCodigo(livroId) {
+        console.log('Revealing code for livroId:', livroId);
+        const response = await fetch(`/api/Usuarios/ObterCodigoEmprestimo/${livroId}`, {
+            method: 'GET',
+            credentials: 'include' // Adiciona cookies de autenticação
+        });
+        if (response.ok) {
+            const result = await response.json();
+            const codigoSpan = document.querySelector(`span[id="codigo-${livroId}"]`);
+            if (codigoSpan) {
+                codigoSpan.textContent = result.codigoEmprestimo;
+                // Opcional: remover o botão após revelar
+                const button = codigoSpan.nextElementSibling;
+                if (button) {
+                    button.remove();
+                }
+            } else {
+                console.error('Element not found for livroId:', livroId);
+            }
+        } else {
+            console.error('Erro ao obter código de empréstimo:', response.statusText);
+            alert('Erro ao obter código de empréstimo.');
+        }
+    }
+
+    async function devolverLivro(livroId) {
+        if(confirm('Tem certeza que deseja devolver este livro?')) {
+            const response = await fetch(`/api/Livros/DevolverLivro`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(livroId)
+            });
+
+            if (response.ok) {
+                alert('Livro devolvido com sucesso!');
+                location.reload();
+            } else {
+                const error = await response.text();
+                alert('Erro ao devolver livro: ' + error);
+            }
+        }
+    }
+
+    function logout() {
+        deleteCookie('login');
+        deleteCookie('senha');
+        window.location.href = '/Home/Index';
+    }
+
+    function deleteCookie(name) {
+        document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+    }
+</script>

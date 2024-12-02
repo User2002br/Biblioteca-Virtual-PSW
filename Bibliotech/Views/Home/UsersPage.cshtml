@@ -1,0 +1,101 @@
+@model IEnumerable<Bibliotech.Models.Usuario>
+
+@{
+    ViewData["Title"] = "Lista de Usuários";
+    var login = Context.Request.Cookies["login"];
+}
+
+<h2>Lista de Usuários</h2>
+
+<div class="text-center">
+    <div id="profile-picture" class="mt-3" style="position: absolute; top: 10px; right: 10px;"></div>
+</div>
+
+<p>Total de usuários: @Model?.Count()</p>
+
+<style>
+    th, td {
+        padding: 10px 15px;
+    }
+</style>
+
+@Html.AntiForgeryToken()
+
+<table>
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Nome</th>
+            <th>Login</th>
+            <th>Senha</th>
+            <th>Perfil</th>
+            <th>Deletar</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var usuario in Model)
+        {
+            <tr>
+                <td>@usuario.Id</td>
+                <td>@usuario.Nome</td>
+                <td>@usuario.Login</td>
+                <td>
+                    <span id="senha-@usuario.Id">@Html.Raw(new string('*', usuario.Senha.Length))</span>
+                    <button type="button" id="toggle-senha-@usuario.Id" onclick="toggleSenha(@usuario.Id, '@Html.Raw(usuario.Senha.Replace("'", "\\'"))')">Revelar</button>
+                </td>
+                <td>@usuario.Perfil</td>
+                <td>
+                    <button type="button" class="delete-button" data-id="@usuario.Id" style="background-color: red; color: white;">
+                        Deletar
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const tokenElement = document.querySelector('input[name="__RequestVerificationToken"]');
+        const token = tokenElement ? tokenElement.value : '';
+
+        const deleteButtons = document.querySelectorAll('.delete-button');
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const buttonRef = this;
+                const userId = buttonRef.getAttribute('data-id');
+                if (confirm('Tem certeza que deseja deletar este usuário?')) {
+                    fetch(`/api/Usuarios/${userId}`, {
+                        method: 'DELETE',
+                        headers: {
+                            'RequestVerificationToken': token
+                        }
+                    })
+                    .then(response => {
+                        if (response.ok) {
+                            const row = buttonRef.closest('tr');
+                            row.parentNode.removeChild(row);
+                        } else {
+                            return response.json().then(data => { throw new Error(data.message || 'Erro ao deletar usuário.'); });
+                        }
+                    })
+                    .catch(error => alert(error.message));
+                }
+            });
+        });
+
+        window.toggleSenha = function(id, senha) {
+            const senhaElement = document.getElementById(`senha-${id}`);
+            const buttonElement = document.getElementById(`toggle-senha-${id}`);
+            if (senhaElement && buttonElement) {
+                if (senhaElement.textContent === senha) {
+                    senhaElement.textContent = '*'.repeat(senha.length);
+                    buttonElement.textContent = 'Revelar';
+                } else {
+                    senhaElement.textContent = senha;
+                    buttonElement.textContent = 'Esconder';
+                }
+            }
+        };
+    });
+</script>
